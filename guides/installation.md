@@ -1,20 +1,31 @@
-# Installation
+# Installation Guide
+
+This guide will help you install and set up the Memory SDK.
 
 ## Requirements
 
-Memory SDK requires Python 3.8 or later and depends on the following packages:
-- openai >= 1.0.0
-- supabase >= 2.0.0
-- python-dotenv >= 1.0.0
+- Python 3.8 or later
+- Dependencies:
+  - `openai`
+  - `supabase`
+  - `python-dotenv`
+
+## Install from PyPI
+
+The easiest way to install Memory SDK is directly from PyPI:
+
+```bash
+pip install human-memory
+```
 
 ## Install from Source
 
-Currently, the package can be installed directly from the source repository:
+Alternatively, you can install from source:
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/memory-sdk.git
-cd memory-sdk
+git clone https://github.com/deadcow-labs/human-memory.git
+cd human-memory
 
 # Install the package
 pip install -e .
@@ -22,23 +33,20 @@ pip install -e .
 
 ## Environment Setup
 
-Memory SDK requires the following environment variables:
+The Memory SDK requires API keys for OpenAI and Supabase. You can set these as environment variables:
 
 ```bash
-# OpenAI API Key
 export OPENAI_API_KEY=your_openai_api_key
-
-# Supabase Configuration
-export SUPABASE_URL=your_supabase_project_url
-export SUPABASE_KEY=your_supabase_api_key
+export SUPABASE_URL=your_supabase_url
+export SUPABASE_KEY=your_supabase_service_key
 ```
 
-Alternatively, you can use a `.env` file with the python-dotenv package:
+Alternatively, you can use a `.env` file with the `python-dotenv` package:
 
 ```
 OPENAI_API_KEY=your_openai_api_key
-SUPABASE_URL=your_supabase_project_url
-SUPABASE_KEY=your_supabase_api_key
+SUPABASE_URL=your_supabase_url
+SUPABASE_KEY=your_supabase_service_key
 ```
 
 Then load it in your application:
@@ -51,41 +59,57 @@ load_dotenv()  # Load environment variables from .env file
 
 ## Supabase Database Setup
 
-Memory SDK requires a Supabase project with a properly configured `memories` table:
+1. Create a new Supabase project at [https://supabase.com](https://supabase.com)
 
-1. Create a new Supabase project at [supabase.com](https://supabase.com/)
-2. Enable the Vector extension in your Supabase database by running:
-
+2. Enable the Vector extension:
 ```sql
--- Enable the vector extension
-create extension if not exists vector;
+-- Enable the Vector extension
+CREATE EXTENSION IF NOT EXISTS vector;
 ```
 
-3. Create the memories table with the following schema:
-
+3. Create a `memories` table with the following schema:
 ```sql
-create table
-  public.memories (
-    id uuid primary key,
-    user_id text not null,
-    created_at timestamp with time zone not null,
-    content text not null,
-    reflection text not null,
-    embedding vector(1536) not null,
-    emotional_tone text not null,
-    location jsonb not null,
-    tags text[] not null
-  );
+CREATE TABLE memories (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    content TEXT NOT NULL,
+    reflection TEXT,
+    embedding VECTOR(1536),
+    emotional_tone TEXT,
+    location TEXT,
+    tags TEXT[],
+    metadata JSONB DEFAULT '{}'::JSONB
+);
 ```
 
-4. Set up appropriate Row Level Security (RLS) policies to secure your data.
-
-5. Create an index for faster similarity searches (optional but recommended):
-
+4. Set up Row Level Security (RLS) policies:
 ```sql
-create index on memories 
-using ivfflat (embedding vector_cosine_ops)
-with (lists = 100);
+-- Enable RLS
+ALTER TABLE memories ENABLE ROW LEVEL SECURITY;
+
+-- Create a policy that allows users to see only their memories
+CREATE POLICY "Users can see their own memories" ON memories
+    FOR SELECT
+    USING (auth.uid()::text = user_id);
+
+-- Create a policy that allows users to insert their own memories
+CREATE POLICY "Users can insert their own memories" ON memories
+    FOR INSERT
+    WITH CHECK (auth.uid()::text = user_id);
 ```
 
-Now you're ready to use Memory SDK with your Supabase database! 
+5. Create an index for faster similarity searches:
+```sql
+-- Create an index for vector similarity searches
+CREATE INDEX IF NOT EXISTS memories_embedding_idx 
+ON memories 
+USING ivfflat (embedding vector_cosine_ops) 
+WITH (lists = 100);
+```
+
+## Next Steps
+
+- [Getting Started](getting-started.md)
+- [Configuration](configuration.md)
+- [Memory Structure](memory-structure.md) 
